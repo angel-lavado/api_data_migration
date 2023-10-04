@@ -91,4 +91,92 @@ def upload_csv():
         return jsonify({"Error Message": f"IO Error: {io_error}"}), 500
     except Exception as e:
         return jsonify({"Error Message": f"An unexpected error occurred: {str(e)}"}), 500
+
+
+# API route for the first SQL query requirement (Cloud SQL)
+@app.route('/requirement1', methods=['GET'])
+def requirement1():
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        sql_query = """
+            SELECT 
+                d.department,
+                j.job,
+                COUNTIF(MONTH(he.datetime) BETWEEN 1 AND 3) AS Q1,
+                COUNTIF(MONTH(he.datetime) BETWEEN 4 AND 6) AS Q2,
+                COUNTIF(MONTH(he.datetime) BETWEEN 7 AND 9) AS Q3,
+                COUNTIF(MONTH(he.datetime) BETWEEN 10 AND 12) AS Q4   
+            FROM hired_employees AS he
+            LEFT JOIN departments AS d
+                ON he.department_id = d.id
+            LEFT JOIN jobs AS j
+                ON he.job_id = j.id
+            WHERE 
+                YEAR(he.hired_date) = '2021'
+            GROUP BY d.department, j.job
+            ORDER BY d.department, j.job;
+            """
+        cursor.execute(sql_query)
+        results = cursor.fetchall()
+
+        cursor.close()
+        conn.close()
+
+        return jsonify(results), 200
+
+    except psycopg2.Error as db_error:
+        return jsonify({"Error Message": f"Database Error: {db_error}"}), 500
+    except Exception as e:
+        return jsonify({"Error Message": f"An unexpected error occurred: {str(e)}"}), 500
+
+# API route for the second SQL query requirement (Cloud SQL)
+@app.route('/requirement2', methods=['GET'])
+def requirement2():
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        sql_query = """
+            WITH hired_employees AS (
+
+            SELECT 
+                d.id,
+                d.department,
+                COUNT(he.id) AS hired	
+                COUNT(CASE WHEN YEAR(datetime) = '2021' THEN he.id END) AS hired_2021
+            FROM hired_employees AS he
+            LEFT JOIN departments AS d
+            ON he.department_id = d.id
+            GROUP BY 
+                d.id, d.department
+
+            ), mean_employees_by_department AS (
+
+            SELECT MEAN(hired_2021) AS mean_by_department
+            FROM hired_employees
+
+            )
+            SELECT 
+                id, department, hired 
+            FROM hired_employees
+            WHERE hired > (SELECT mean_by_department FROM mean_employees_by_department)
+            ORDER BY hired DESC
+        """
+        cursor.execute(sql_query)
+        results = cursor.fetchall()
+
+        cursor.close()
+        conn.close()
+
+        return jsonify(results), 200
+
+    except psycopg2.Error as db_error:
+        return jsonify({"Error Message": f"Database Error: {db_error}"}), 500
+    except Exception as e:
+        return jsonify({"Error Message": f"An unexpected error occurred: {str(e)}"}), 500
+
+if __name__ == '__main__':
+
+    app.run(debug=True)
+
         
